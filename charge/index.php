@@ -1,61 +1,40 @@
 <?php
-// Set your server key (Note: Server key for sandbox and production mode are different)
-$server_key = 'SB-Mid-server-CZmZhyGxtAqSHo_0umwyRgcW';
-// Set true for production, set false for sandbox
-$is_production = false;
+// Endpoint Midtrans Snap Sandbox
+$url = "https://app.sandbox.midtrans.com/snap/v1/transactions";
 
-$api_url = $is_production ? 
-  'https://app.midtrans.com/snap/v1/transactions' : 
-  'https://app.sandbox.midtrans.com/snap/v1/transactions';
+// Mengizinkan CORS
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
+// Ambil body permintaan yang dikirim dari aplikasi
+$body = file_get_contents('php://input');
 
-// Check if request doesn't contains /charge in the url/path, display 404
-if( !strpos($_SERVER['REQUEST_URI'], '/charge') ) {
-  http_response_code(404); 
-  echo "wrong path, make sure it's /charge"; exit();
+// Buat permintaan HTTP menggunakan curl
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    "Content-Type: application/json",
+    "Authorization: Basic " . base64_encode("SB-Mid-server-CZmZhyGxtAqSHo_0umwyRgcW:")
+]);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+
+// Eksekusi permintaan dan dapatkan respons
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+if (curl_errno($ch)) {
+    // Mengembalikan pesan kesalahan
+    http_response_code(500);
+    echo json_encode(["error" => curl_error($ch)]);
+    curl_close($ch);
+    exit();
+} else {
+    // Kembalikan respons dari Midtrans ke aplikasi
+    http_response_code($httpCode);
+    echo $response;
 }
-// Check if method is not HTTP POST, display 404
-if( $_SERVER['REQUEST_METHOD'] !== 'POST'){
-  http_response_code(404);
-  echo "Page not found or wrong HTTP request method is used"; exit();
-}
 
-// get the HTTP POST body of the request
-$request_body = file_get_contents('php://input');
-// set response's content type as JSON
-header('Content-Type: application/json');
-// call charge API using request body passed by mobile SDK
-$charge_result = chargeAPI($api_url, $server_key, $request_body);
-// set the response http status code
-http_response_code($charge_result['http_code']);
-// then print out the response body
-echo $charge_result['body'];
-
-/**
- * call charge API using Curl
- * @param string  $api_url
- * @param string  $server_key
- * @param string  $request_body
- */
-function chargeAPI($api_url, $server_key, $request_body){
-  $ch = curl_init();
-  $curl_options = array(
-    CURLOPT_URL => $api_url,
-    CURLOPT_RETURNTRANSFER => 1,
-    CURLOPT_POST => 1,
-    CURLOPT_HEADER => 0,
-    // Add header to the request, including Authorization generated from server key
-    CURLOPT_HTTPHEADER => array(
-      'Content-Type: application/json',
-      'Accept: application/json',
-      'Authorization: Basic ' . base64_encode($server_key . ':')
-    ),
-    CURLOPT_POSTFIELDS => $request_body
-  );
-  curl_setopt_array($ch, $curl_options);
-  $result = array(
-    'body' => curl_exec($ch),
-    'http_code' => curl_getinfo($ch, CURLINFO_HTTP_CODE),
-  );
-  return $result;
-}
+curl_close($ch);
+?>
